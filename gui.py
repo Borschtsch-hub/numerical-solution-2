@@ -1,10 +1,8 @@
 from tkinter import *
 from tkinter import ttk, messagebox
 
-from matplotlib.figure import Figure # type: ignore
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg # type: ignore
-
-import numpy as np
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from Methods.fitness import *
 from Methods.methods import Method
@@ -19,6 +17,8 @@ class GUI():
         self.root.geometry(resolution)
 
         self.method_var = StringVar(value="bisection")
+
+        self.x_prev, self.x_curr = (None, None)
 
         self._create_widgets()
 
@@ -42,7 +42,7 @@ class GUI():
         range_subframe.grid(row=1, column=1, padx=10, pady=5, sticky="w")
 
         self.range_a_entry = ttk.Entry(range_subframe, width=13)
-        self.range_a_entry.insert(0, "-1.5")
+        self.range_a_entry.insert(0, "-1.35")
         self.range_a_entry.pack(side="left")
 
         self.range_b_entry = ttk.Entry(range_subframe, width=13)
@@ -60,22 +60,36 @@ class GUI():
             value="bisection"
         ).pack(anchor="w", pady=2)
 
-        # Newton
+        # regula-falsi
         ttk.Radiobutton(
             methods_frame, 
-            text="Метод хорд (в розробці)", 
+            text="Метод хорд (secant)", 
             variable=self.method_var, 
-            value="chord",
-            state="disabled" 
+            value="secant",
+        ).pack(anchor="w", pady=2)
+
+        # regula-falsi
+        ttk.Radiobutton(
+            methods_frame, 
+            text="Метод хорд (regula-falsi)", 
+            variable=self.method_var, 
+            value="regula-falsi",
         ).pack(anchor="w", pady=2)
 
         # Newton
         ttk.Radiobutton(
             methods_frame, 
-            text="Метод Ньютона (в розробці)", 
+            text="Метод Ньютона (Newton)", 
             variable=self.method_var, 
-            value="newton",
-            state="disabled" 
+            value="newton", 
+        ).pack(anchor="w", pady=2)
+
+        # single-point
+        ttk.Radiobutton(
+            methods_frame, 
+            text="Метод простої ітерації (single-point)", 
+            variable=self.method_var, 
+            value="single-point", 
         ).pack(anchor="w", pady=2)
 
         #buttons
@@ -106,11 +120,17 @@ class GUI():
 
             self.selected_method = self.method_var.get()
 
-            if self.selected_method in {"bisection", "chord"}:
+            if self.selected_method in {"bisection", "regula-falsi"}:
                 self.calculate.opposite_check(self._range)
 
-            
-        
+            if self.selected_method == "newton":
+                self.x_curr = range_a
+            elif self.selected_method == "single-point":
+                self.x_curr = range_b
+            elif self.selected_method == "secant":
+                self.x_prev = range_a
+                self.x_curr = range_b
+
             self.plotter()
             self.step_btn.config(state="normal")
         
@@ -121,30 +141,87 @@ class GUI():
 
     def next_step(self):
         match self.selected_method:
-            case "bisection":
-                self._range = self.calculate.bisection(self._range)
+            case "bisection" | "regula-falsi":
+                
+                if self.selected_method == "bisection":
+                    self._range = self.calculate.bisection(self._range)
+                else:
+                    self._range = self.calculate.regula_falsi(self._range)
+
                 print(f"range: {self._range}")
 
                 _midpoint = self.calculate.midpoint(self._range[0], self._range[1])
-                print(f"midpoint: x:{_midpoint}\ty:{fitness(_midpoint)}")
+                y_val = fitness(_midpoint)
+                print(f"point: x:{_midpoint}\ty:{y_val}")
 
                 self.plotter()
-                self.draw_point(_midpoint, fitness(_midpoint))
+                self.draw_point(_midpoint, y_val)
 
-                if abs(fitness(_midpoint)) < self._precision:
+                if abs(y_val) < self._precision or abs(self._range[1] - self._range[0]) < self._precision:
                     self.step_btn.config(state="disabled")
+                    messagebox.showinfo("Готово", f"Корінь знайдено: x = {_midpoint:.5f}")
 
-            case "chord":
-                pass
+            case "secant":
+                try:
+                    if self.x_prev is None or self.x_curr is None:
+                        self.x_prev, self.x_curr = self._range
 
-            case "newton":
-                pass
-            
+                    x_next, _ = self.calculate.secant(x_prev=self.x_prev,x_curr=self.x_curr)
+
+                    self.x_prev = self.x_curr
+                    self.x_curr = x_next
+
+                    self.plotter()
+                    self.draw_point(self.x_curr, fitness(self.x_curr))
+                    self.draw_point(self.x_prev, fitness(self.x_prev))
+                    self.draw_line([self.x_curr, self.x_prev],[fitness(self.x_curr), fitness(self.x_prev)])
+
+                    if abs(fitness(self.x_curr)) < self._precision:
+                        self.step_btn.config(state="disabled")
+                        messagebox.showinfo("Готово", f"Корінь знайдено: x = {self.x_curr:.5f}")
+                except (ZeroDivisionError, OverflowError) as e:
+                    self.step_btn.config(state="disabled")
+                    messagebox.showerror(
+                        "Помилка збіжності", 
+                        "Метод розходиться: значення занадто великі (Overflow) або похідна дорівнює нулю."
+                    )
+                    return
+
+            case "newton" | "single-point":
+                try:
+                    if self.selected_method == "newton":
+                        self.x_curr = self.calculate.newton(self.x_curr)
+                    else:
+                        self.x_curr = fitness_x(self.x_curr)
+                    x_curr = self.x_curr
+
+                    y_val = fitness(x_curr)
+                    print(f"point: x:{x_curr}\ty:{y_val}")
+
+                    self.plotter()
+                    self.draw_point(x_curr, y_val)
+
+                    if abs(y_val) < self._precision:
+                        self.step_btn.config(state="disabled")
+                        messagebox.showinfo("Готово", f"Корінь знайдено: x = {x_curr:.5f}")
+
+                except (ZeroDivisionError, OverflowError) as e:
+                    self.step_btn.config(state="disabled")
+                    messagebox.showerror(
+                        "Помилка збіжності", 
+                        "Метод розходиться: значення занадто великі (Overflow) або похідна дорівнює нулю."
+                    )
+                    return
+
             case _: 
-                print(f"Not implemented{self.selected_method}")
+                print(f"Not implemented {self.selected_method}")
 
     def draw_point(self, x:float, y: float):
         self.ax.scatter([x], [y], color='red',s=100)
+        self.canvas.draw()
+
+    def draw_line(self, x_vals:list[float], y_vals: list[float]):
+        self.ax.plot(x_vals, y_vals, 'o-', color='blue')
         self.canvas.draw()
 
     def plotter(self):
