@@ -34,22 +34,6 @@ class Method:
         x_next = x_curr - f_curr * (x_curr - x_prev) / denominator
         return x_next, fitness(x_next)
 
-    def regula_falsi(self, range: tuple) -> tuple:
-        self.opposite_check(range)
-        a, b = range
-        fa = fitness(a)
-        fb = fitness(b)
-        
-        x_n = a - fa * (b - a) / (fb - fa)
-        fx_n = fitness(x_n)
-
-        if fx_n == 0:
-            return (x_n, x_n)
-        elif fa * fx_n < 0:
-            return (a, x_n)
-        else:
-            return (x_n, b)
-
     def newton(self, x: float) -> float:
         df = diff_1(x)
         if df == 0:

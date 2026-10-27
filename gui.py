@@ -1,6 +1,8 @@
 from tkinter import *
 from tkinter import ttk, messagebox
 
+import numpy as np
+
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
@@ -60,20 +62,12 @@ class GUI():
             value="bisection"
         ).pack(anchor="w", pady=2)
 
-        # regula-falsi
+        # secant
         ttk.Radiobutton(
             methods_frame, 
             text="Метод хорд (secant)", 
             variable=self.method_var, 
             value="secant",
-        ).pack(anchor="w", pady=2)
-
-        # regula-falsi
-        ttk.Radiobutton(
-            methods_frame, 
-            text="Метод хорд (regula-falsi)", 
-            variable=self.method_var, 
-            value="regula-falsi",
         ).pack(anchor="w", pady=2)
 
         # Newton
@@ -120,7 +114,7 @@ class GUI():
 
             self.selected_method = self.method_var.get()
 
-            if self.selected_method in {"bisection", "regula-falsi"}:
+            if self.selected_method == "bisection":
                 self.calculate.opposite_check(self._range)
 
             if self.selected_method == "newton":
@@ -141,12 +135,8 @@ class GUI():
 
     def next_step(self):
         match self.selected_method:
-            case "bisection" | "regula-falsi":
-                
-                if self.selected_method == "bisection":
-                    self._range = self.calculate.bisection(self._range)
-                else:
-                    self._range = self.calculate.regula_falsi(self._range)
+            case "bisection":
+                self._range = self.calculate.bisection(self._range)
 
                 print(f"range: {self._range}")
 
